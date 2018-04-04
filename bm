@@ -1,0 +1,70 @@
+#!/usr/bin/env python
+import os
+from clize import run
+from datetime import datetime
+import sqlite3
+from bs4 import BeautifulSoup
+import requests
+from tabulate import tabulate
+
+db_path = os.path.join(os.getenv('HOME'), '.bm.db')
+
+def a(url, *, desc='', tags=''):
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    c.execute("CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key, time TIMESTAMP, url TEXT UNIQUE, title TEXT, description TEXT, tags TEXT, views INT)")
+    time = datetime.now()
+    title = _get_title(url)
+    title = title.replace("'",  "")
+    print('url : {}, title : {}'.format(url, title))
+    q = "INSERT INTO urls VALUES(NULL, '{time}', '{url}', '{title}', '{desc}', '{tags}', {views})".format(time=time, url=url, title=title, desc=desc, tags=tags, views=0)
+    c.execute(q)
+    conn.commit()
+
+
+def _get_title(url):
+    soup = BeautifulSoup(requests.get(url).content, 'lxml')
+    if soup.title is None:
+        return ''
+    return soup.title.text
+
+def ls(*, q=''):
+    conn = sqlite3.connect(db_path)
+    w = "title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=q)
+
+    q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
+    c = conn.cursor()
+    c.execute(q)
+    conn.commit()
+
+    q = "SELECT * FROM urls WHERE {w} ORDER BY views DESC".format(w=w)
+    c = conn.cursor()
+    rows = []
+    for row in c.execute(q):
+        id_, time, url, title, desc, tags, views = row
+        url = '"{}"'.format(url)
+        rows.append((url, title, views))
+    print(tabulate(rows, headers=['url', 'title', 'views']))
+
+
+def rm(*, k=''):
+    q = "SELECT * FROM urls WHERE title LIKE '%{}%' OR url LIKE '%{}%'".format(k, k)
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    for row in c.execute(q):
+        id_, url, *rest = row
+        response = ''
+        while response not in ('y', 'n'):
+            print('Delete {} ? (y/n)'.format(url), end='')
+            response = input()
+            c.execute("DELETE FROM urls WHERE id={}".format(id_))
+    conn.commit()
+
+
+def _show(row):
+    id_, time, url, title, desc, tags, views = row
+    print('url : "{}", title : "{}", views : {}'.format(url, title, views))
+ 
+
+if __name__ == '__main__':
+    run([a, ls, rm])
