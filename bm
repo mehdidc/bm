@@ -28,7 +28,7 @@ def _get_title(url):
         return ''
     return soup.title.text
 
-def ls(*, q=''):
+def ls(q='', *, id=-1):
     conn = sqlite3.connect(db_path)
     w = "title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=q)
 
@@ -36,18 +36,33 @@ def ls(*, q=''):
     c = conn.cursor()
     c.execute(q)
     conn.commit()
-
-    q = "SELECT * FROM urls WHERE {w} ORDER BY views DESC".format(w=w)
+    
+    if id >= 0:
+        q = "SELECT * FROM urls WHERE id={}".format(id)
+    else:
+        q = "SELECT * FROM urls WHERE {w} ORDER BY views DESC".format(w=w)
     c = conn.cursor()
     rows = []
-    for row in c.execute(q):
+    rows = list(c.execute(q))
+    show_rows = []
+    for row in rows:
         id_, time, url, title, desc, tags, views = row
         url = '"{}"'.format(url)
-        rows.append((url, title, views))
-    print(tabulate(rows, headers=['url', 'title', 'views']))
+        if len(rows)>20:
+            url = _format(url)
+            title = _format(title)
+        show_rows.append((id_, url, title, views))
+    print(tabulate(show_rows, headers=['id', 'url', 'title', 'views']))
 
 
-def rm(*, k=''):
+def _format(s):
+    max_length = 80
+    s = s.replace('\n', '')
+    if len(s) > max_length:
+        s = s[0:max_length] + '(...)'
+    return s
+
+def rm(k=''):
     q = "SELECT * FROM urls WHERE title LIKE '%{}%' OR url LIKE '%{}%'".format(k, k)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
