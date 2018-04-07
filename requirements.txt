@@ -1,0 +1,5 @@
+clize
+bs4
+requests
+tabulate
+pandas

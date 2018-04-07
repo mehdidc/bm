@@ -22,5 +22,5 @@ setup(
                  'Operating System :: MacOS'],
     platforms='any',
     scripts=['bm'],
-    install_requires=['clize', 'bs4'],
+    install_requires=['clize', 'bs4', 'requests', 'tabulate', 'pandas'],
 )

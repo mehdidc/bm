@@ -6,6 +6,7 @@ import sqlite3
 from bs4 import BeautifulSoup
 import requests
 from tabulate import tabulate
+import pandas as pd
 
 db_path = os.path.join(os.getenv('HOME'), '.bm.db')
 
@@ -56,7 +57,7 @@ def ls(q='', *, id=-1):
 
 
 def _format(s):
-    max_length = 80
+    max_length = 50
     s = s.replace('\n', '')
     if len(s) > max_length:
         s = s[0:max_length] + '(...)'
@@ -75,6 +76,18 @@ def rm(k=''):
             c.execute("DELETE FROM urls WHERE id={}".format(id_))
     conn.commit()
 
+def export(out):
+    q = "SELECT * FROM urls"
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    rows = []
+    for row in c.execute(q):
+        rows.append(row)
+    cols = ['id_', 'time', 'url', 'title', 'desc', 'tags', 'views']
+    df = pd.DataFrame(rows, index=False, columns=cols)
+    df.to_csv(out)
+ 
+
 
 def _show(row):
     id_, time, url, title, desc, tags, views = row
@@ -82,4 +95,4 @@ def _show(row):
  
 
 if __name__ == '__main__':
-    run([a, ls, rm])
+    run([a, ls, rm, export])
