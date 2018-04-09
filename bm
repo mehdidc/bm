@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import os
 from clize import run
-from collections import defaultdict
 from datetime import datetime
 import sqlite3
 from bs4 import BeautifulSoup
@@ -11,10 +10,12 @@ import pandas as pd
 
 db_path = os.path.join(os.getenv('HOME'), '.bm.db')
 
+
 def a(url, *, desc='', tags=''):
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key, time TIMESTAMP, url TEXT UNIQUE, title TEXT, description TEXT, tags TEXT, views INT)")
+    c.execute("CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key, time TIMESTAMP,"
+              "url TEXT UNIQUE, title TEXT, description TEXT, tags TEXT, views INT)")
     time = datetime.now()
     title = _get_title(url)
     title = title.replace("'",  "")
@@ -30,15 +31,16 @@ def _get_title(url):
         return ''
     return soup.title.text
 
+
 def ls(q='', *, id=-1):
     conn = sqlite3.connect(db_path)
-    w = "title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=q)
-
+    keywords = q.split(' ')
+    w = ' OR '.join(["title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords])
     q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
     c = conn.cursor()
     c.execute(q)
     conn.commit()
-    
+
     if id >= 0:
         q = "SELECT id, url, title, views FROM urls WHERE id={}".format(id)
     else:
@@ -54,12 +56,14 @@ def ls(q='', *, id=-1):
 
     print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
 
+
 def _format(s):
     max_length = 50
     s = s.replace('\n', '')
     if len(s) > max_length:
         s = s[0:max_length] + '(...)'
     return s
+
 
 def rm(k=''):
     q = "SELECT * FROM urls WHERE title LIKE '%{}%' OR url LIKE '%{}%'".format(k, k)
@@ -74,6 +78,7 @@ def rm(k=''):
             c.execute("DELETE FROM urls WHERE id={}".format(id_))
     conn.commit()
 
+
 def export(out):
     q = "SELECT * FROM urls"
     conn = sqlite3.connect(db_path)
@@ -84,13 +89,12 @@ def export(out):
     cols = ['id_', 'time', 'url', 'title', 'desc', 'tags', 'views']
     df = pd.DataFrame(rows, index=False, columns=cols)
     df.to_csv(out)
- 
 
 
 def _show(row):
     id_, time, url, title, desc, tags, views = row
     print('url : "{}", title : "{}", views : {}'.format(url, title, views))
- 
+
 
 if __name__ == '__main__':
     run([a, ls, rm, export])
