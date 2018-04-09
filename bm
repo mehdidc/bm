@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 from clize import run
+from collections import defaultdict
 from datetime import datetime
 import sqlite3
 from bs4 import BeautifulSoup
@@ -39,22 +40,19 @@ def ls(q='', *, id=-1):
     conn.commit()
     
     if id >= 0:
-        q = "SELECT * FROM urls WHERE id={}".format(id)
+        q = "SELECT id, url, title, views FROM urls WHERE id={}".format(id)
     else:
-        q = "SELECT * FROM urls WHERE {w} ORDER BY views DESC".format(w=w)
+        q = "SELECT id, url, title, views FROM urls WHERE {w} ORDER BY views DESC".format(w=w)
     c = conn.cursor()
     rows = []
-    rows = list(c.execute(q))
-    show_rows = []
-    for row in rows:
-        id_, time, url, title, desc, tags, views = row
-        url = '"{}"'.format(url)
-        if len(rows)>20:
+    for row in (c.execute(q)):
+        id_, url, title, views = row
+        if id < 0:
             url = _format(url)
             title = _format(title)
-        show_rows.append((id_, url, title, views))
-    print(tabulate(show_rows, headers=['id', 'url', 'title', 'views']))
+        rows.append((id_, url, title, views))
 
+    print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
 
 def _format(s):
     max_length = 50
