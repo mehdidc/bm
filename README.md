@@ -4,7 +4,7 @@ Simple bookmark manager that uses Sqlite to store the links.
 
 # Usage
 
-## add link
+## Add link
 
 ```bash
 bm a http://example.com
