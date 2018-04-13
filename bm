@@ -67,8 +67,11 @@ def _format(s):
     return s
 
 
-def rm(k=''):
-    q = "SELECT * FROM urls WHERE title LIKE '%{}%' OR url LIKE '%{}%'".format(k, k)
+def rm(k='', *, id=-1):
+    if id < 0:
+        q = "SELECT * FROM urls WHERE title LIKE '%{}%' OR url LIKE '%{}%'".format(k, k)
+    else:
+        q = "SELECT * FROM urls WHERE id={}".format(id)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     for row in c.execute(q):
@@ -102,7 +105,7 @@ def tag():
         print('New tag ?', end='')
         tag = input()
         conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(tag, id_))
-       
+        conn.commit() 
 
 def _show(row):
     id_, time, url, title, desc, tags, views = row
