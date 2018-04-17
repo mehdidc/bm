@@ -32,10 +32,14 @@ def _get_title(url):
     return soup.title.text
 
 
+def _search_request(keywords):
+    w = ' OR '.join(["title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords])
+    return w
+
 def ls(q='', *, id=-1, tag=''):
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
-    w = ' OR '.join(["title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords])
+    w = _search_request(keywords)
     if tag != '':
         w = "({}) AND '{}' LIKE tags".format(w, tag) 
     q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
@@ -95,7 +99,9 @@ def export(out):
     df = pd.DataFrame(rows, index=False, columns=cols)
     df.to_csv(out)
 
-def tag():
+def tag(q=''):
+    keywords = q.split(' ')
+    w = _search_request(keywords)
     q = "SELECT id, url, title FROM urls WHERE tags=''"
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -104,8 +110,9 @@ def tag():
         print(title)
         print('New tag ?', end='')
         tag = input()
-        conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(tag, id_))
-        conn.commit() 
+        if tag != '':
+            conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(tag, id_))
+            conn.commit() 
 
 def _show(row):
     id_, time, url, title, desc, tags, views = row
