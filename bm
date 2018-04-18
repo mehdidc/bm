@@ -19,11 +19,13 @@ def a(url, *, desc='', tags=''):
     time = datetime.now()
     title = _get_title(url)
     title = title.replace("'",  "")
-    print('url : {}, title : {}'.format(url, title))
+    print('Adding url : {}, title : {}...'.format(url, title))
     q = "INSERT INTO urls VALUES(NULL, '{time}', '{url}', '{title}', '{desc}', '{tags}', {views})".format(time=time, url=url, title=title, desc=desc, tags=tags, views=0)
-    c.execute(q)
-    conn.commit()
-
+    try:
+        c.execute(q)
+        conn.commit()
+    except sqlite3.IntegrityError:
+        print('Failed, url "{}" Already exists in the database.'.format(url))
 
 def _get_title(url):
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
