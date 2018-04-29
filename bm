@@ -27,6 +27,7 @@ def a(url, *, desc='', tags=''):
     except sqlite3.IntegrityError:
         print('Failed, url "{}" Already exists in the database.'.format(url))
 
+
 def _get_title(url):
     soup = BeautifulSoup(requests.get(url).content, 'lxml')
     if soup.title is None:
@@ -38,17 +39,19 @@ def _search_request(keywords):
     w = ' OR '.join(["title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords])
     return w
 
+
 def ls(q='', *, id=-1, tag=''):
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
     w = _search_request(keywords)
     if tag != '':
         w = "({}) AND '{}' LIKE tags".format(w, tag) 
-    q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
-    c = conn.cursor()
-    c.execute(q)
-    conn.commit()
-
+    if q != '':
+        # update nb of views only when we search for something
+        q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
+        c = conn.cursor()
+        c.execute(q)
+        conn.commit()
     if id >= 0:
         q = "SELECT id, url, title, views FROM urls WHERE id={}".format(id)
     else:
@@ -61,7 +64,6 @@ def ls(q='', *, id=-1, tag=''):
             url = _format(url)
             title = _format(title)
         rows.append((id_, url, title, views))
-
     print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
 
 
@@ -116,10 +118,19 @@ def tag(q=''):
             conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(tag, id_))
             conn.commit() 
 
+
+def reset_views():
+    conn = sqlite3.connect(db_path)
+    q = "UPDATE urls SET views = 0"
+    c = conn.cursor()
+    c.execute(q)
+    conn.commit()
+
+
 def _show(row):
     id_, time, url, title, desc, tags, views = row
     print('url : "{}", title : "{}", views : {}'.format(url, title, views))
 
 
 if __name__ == '__main__':
-    run([a, ls, rm, export, tag])
+    run([a, ls, rm, export, tag, reset_views])
