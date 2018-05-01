@@ -40,7 +40,7 @@ def _search_request(keywords):
     return w
 
 
-def ls(q='', *, id=-1, tag=''):
+def ls(q='', *, id=-1, tag='', open=False):
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
     w = _search_request(keywords)
@@ -65,8 +65,10 @@ def ls(q='', *, id=-1, tag=''):
             title = _format(title)
         rows.append((id_, url, title, views))
     print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
-
-
+    if open:
+        import webbrowser
+        _, url, _, _ = rows[0]
+        webbrowser.open(url)
 def _format(s):
     max_length = 50
     s = s.replace('\n', '')
