@@ -69,6 +69,8 @@ def ls(q='', *, id=-1, tag='', open=False):
         import webbrowser
         _, url, _, _ = rows[0]
         webbrowser.open(url)
+
+
 def _format(s):
     max_length = 50
     s = s.replace('\n', '')
