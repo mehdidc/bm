@@ -40,26 +40,29 @@ def _search_request(keywords):
     return w
 
 
-def ls(q='', *, id=-1, tag='', open=False):
+def ls(q='', *, id=-1, tag='', sort_by='views', open=False):
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
     w = _search_request(keywords)
     if tag != '':
-        w = "({}) AND '{}' LIKE tags".format(w, tag) 
+        w = "({}) AND '{}' LIKE tags".format(w, tag)
+
+    # update nb of views only when we search for something
     if q != '':
-        # update nb of views only when we search for something
         q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
         c = conn.cursor()
         c.execute(q)
         conn.commit()
+
     if id >= 0:
-        q = "SELECT id, url, title, views FROM urls WHERE id={}".format(id)
+        q = "SELECT id, url, title, views, time FROM urls WHERE id={}".format(id)
     else:
-        q = "SELECT id, url, title, views FROM urls WHERE {w} ORDER BY views DESC".format(w=w)
+        q = "SELECT id, url, title, views, time FROM urls WHERE {w} ORDER BY {sort_by} DESC".format(
+            w=w, sort_by=sort_by)
     c = conn.cursor()
     rows = []
     for row in (c.execute(q)):
-        id_, url, title, views = row
+        id_, url, title, views, time = row
         if id < 0:
             url = _format(url)
             title = _format(title)
