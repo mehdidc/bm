@@ -12,15 +12,41 @@ db_path = os.path.join(os.getenv('HOME'), '.bm.db')
 
 
 def a(url, *, desc='', tags=''):
+    """
+    Add a url to the bookmark database
+
+    desc : description (optional)
+    tags : list of tags separated by space (optional)
+
+    Examples:
+
+    bm a "http://github.com/mehdidc/bm"
+
+    bm a "http://github.com/mehdidc/bm" --tags='bm bookmark'
+
+    bm a "http://github/com/mehdidc/bm" --desc='bookmark in command line'
+    """
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    c.execute("CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key, time TIMESTAMP,"
-              "url TEXT UNIQUE, title TEXT, description TEXT, tags TEXT, views INT)")
+    c.execute(
+        "CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key,"
+        "time TIMESTAMP, url TEXT UNIQUE, title TEXT, "
+        "description TEXT, tags TEXT, views INT)")
     time = datetime.now()
     title = _get_title(url)
     title = title.replace("'",  "")
     print('Adding url : {}, title : {}...'.format(url, title))
-    q = "INSERT INTO urls VALUES(NULL, '{time}', '{url}', '{title}', '{desc}', '{tags}', {views})".format(time=time, url=url, title=title, desc=desc, tags=tags, views=0)
+    q = (
+        "INSERT INTO urls VALUES("
+        "NULL, '{time}', '{url}', '{title}', "
+        "'{desc}', '{tags}', {views})".format(
+            time=time,
+            url=url,
+            title=title,
+            desc=desc,
+            tags=tags,
+            views=0)
+    )
     try:
         c.execute(q)
         conn.commit()
@@ -28,19 +54,44 @@ def a(url, *, desc='', tags=''):
         print('Failed, url "{}" Already exists in the database.'.format(url))
 
 
-def _get_title(url):
-    soup = BeautifulSoup(requests.get(url).content, 'lxml')
-    if soup.title is None:
-        return ''
-    return soup.title.text
+def ls(q='', *, id=-1, tag='', sort_by='views', trim=True, open=False):
+    """
+    display the list of urls in the bookmark
 
+    q : str
+        list of keywords separated by space
+        to search for in the urls or titles or tags
+    id : int
+        specic id of a url to display (optional)
+    tag : str
+        specify tag to search for
+    sort_by : str
+        sort the urls by 'views' or 'id' or 'url' or 'time'
+    trim : true or false
+        whether to trim long urls or titles
+    open : true or false
+        whether to open the first url in the diplayed list
+        in the browser
 
-def _search_request(keywords):
-    w = ' OR '.join(["title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords])
-    return w
+    Examples:
 
+    bm ls
 
-def ls(q='', *, id=-1, tag='', sort_by='views', open=False):
+    bm ls 'deep learning video'
+
+    bm ls --id=142
+
+    bm ls --tag='video'
+
+    bm ls 'deep learning video' --trim=false
+
+    bm ls --id=142 --open
+    """
+    if trim:
+        max_length = 50
+    else:
+        max_length = float('inf')
+
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
     w = _search_request(keywords)
@@ -55,36 +106,62 @@ def ls(q='', *, id=-1, tag='', sort_by='views', open=False):
         conn.commit()
 
     if id >= 0:
-        q = "SELECT id, url, title, views, time FROM urls WHERE id={}".format(id)
+        q = (
+            "SELECT id, url, title, views, time FROM urls "
+            "WHERE id={}".format(id)
+        )
     else:
-        q = "SELECT id, url, title, views, time FROM urls WHERE {w} ORDER BY {sort_by} DESC".format(
-            w=w, sort_by=sort_by)
+        q = (
+            "SELECT id, url, title, views, time FROM urls WHERE "
+            "{w} ORDER BY {sort_by} DESC".format(
+                w=w,
+                sort_by=sort_by
+            )
+        )
     c = conn.cursor()
     rows = []
     for row in (c.execute(q)):
         id_, url, title, views, time = row
         if id < 0:
-            url = _format(url)
-            title = _format(title)
+            url = _format(url, max_length=max_length)
+            title = _format(title, max_length=max_length)
         rows.append((id_, url, title, views))
+
     print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
+
     if open:
         import webbrowser
         _, url, _, _ = rows[0]
         webbrowser.open(url)
 
 
-def _format(s):
-    max_length = 50
+def _format(s, max_length=50):
     s = s.replace('\n', '')
     if len(s) > max_length:
         s = s[0:max_length] + '(...)'
     return s
 
 
-def rm(k='', *, id=-1):
+def rm(q='', *, id=-1):
+    """
+    remove a list of urls or one url
+    from the bookmarks database
+
+    q : str
+        list of keywords to search for separated by space
+    id : int
+        id of a specific url to remove (optional)
+
+    Examples:
+
+    bm rm --id=143
+
+    bm rm 'deep learning video'
+    """
     if id < 0:
-        q = "SELECT * FROM urls WHERE title LIKE '%{}%' OR url LIKE '%{}%'".format(k, k)
+        keywords = q.split(' ')
+        w = _search_request(keywords)
+        q = "SELECT * FROM urls WHERE {}".format(w)
     else:
         q = "SELECT * FROM urls WHERE id={}".format(id)
     conn = sqlite3.connect(db_path)
@@ -100,6 +177,16 @@ def rm(k='', *, id=-1):
 
 
 def export(out):
+    """
+    export the database into csv
+
+    out : str
+        filename where to write the csv
+
+    Examples:
+
+    bm export out.csv
+    """
     q = "SELECT * FROM urls"
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
@@ -110,13 +197,26 @@ def export(out):
     df = pd.DataFrame(rows, index=False, columns=cols)
     df.to_csv(out)
 
+
 def tag(q=''):
+    """
+    override the tags of urls
+
+    q : str
+        keywords to search for separated by space
+
+    Examples:
+
+    bm tag
+
+    bm tag 'deep learning video'
+    """
     keywords = q.split(' ')
     w = _search_request(keywords)
     if q == '':
         q = "SELECT id, url, title FROM urls WHERE tags=''"
     else:
-        q = "SELECT Id, url, title FROM urls WHERE {}".format(w)
+        q = "SELECT id, url, title FROM urls WHERE {}".format(w)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     for id_, url, title in c.execute(q):
@@ -125,8 +225,9 @@ def tag(q=''):
         print('New tag ?', end='')
         tag = input()
         if tag != '':
-            conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(tag, id_))
-            conn.commit() 
+            conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(
+                tag, id_))
+            conn.commit()
 
 
 def reset_views():
@@ -137,9 +238,27 @@ def reset_views():
     conn.commit()
 
 
-def _show(row):
-    id_, time, url, title, desc, tags, views = row
-    print('url : "{}", title : "{}", views : {}'.format(url, title, views))
+def _get_title(url):
+    """
+    get the title of a web page
+    """
+    soup = BeautifulSoup(requests.get(url).content, 'lxml')
+    if soup.title is None:
+        return ''
+    return soup.title.text
+
+
+def _search_request(keywords):
+    """
+    Get the where part of sql query title or url should
+    match any of the keywords
+
+    keywords : list of str
+    """
+    w = ' OR '.join([
+        "title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords
+    ])
+    return w
 
 
 if __name__ == '__main__':
