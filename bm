@@ -95,8 +95,14 @@ def ls(q='', *, id=-1, tags='', sort_by='views', trim=True, open=False):
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
     w = _search_request(keywords)
-    if tag != '':
-        w = "({}) AND '{}' LIKE tags".format(w, tag)
+    if tags != '':
+        tags = tags.split(' ')
+        wtags = ["tags LIKE '{}'".format(tag) for tag in tags]
+        wtags = ' OR '.join(wtags)
+        if q == '':
+            w = wtags
+        else:
+            w = "({}) AND ({})".format(w, wtags)
 
     # update nb of views only when we search for something
     if q != '':
