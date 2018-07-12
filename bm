@@ -54,7 +54,7 @@ def a(url, *, desc='', tags=''):
         print('Failed, url "{}" Already exists in the database.'.format(url))
 
 
-def ls(q='', *, id=-1, tag='', sort_by='views', trim=True, open=False):
+def ls(q='', *, id=-1, tags='', sort_by='views', trim=True, open=False):
     """
     display the list of urls in the bookmark
 
@@ -63,8 +63,8 @@ def ls(q='', *, id=-1, tag='', sort_by='views', trim=True, open=False):
         to search for in the urls or titles or tags
     id : int
         specic id of a url to display (optional)
-    tag : str
-        specify tag to search for
+    tags : str
+        specify tags separated by space to search for
     sort_by : str
         sort the urls by 'views' or 'id' or 'url' or 'time'
     trim : true or false
@@ -81,7 +81,7 @@ def ls(q='', *, id=-1, tag='', sort_by='views', trim=True, open=False):
 
     bm ls --id=142
 
-    bm ls --tag='video'
+    bm ls --tags='video'
 
     bm ls 'deep learning video' --trim=false
 
@@ -198,25 +198,48 @@ def export(out):
     df.to_csv(out)
 
 
-def tag(q=''):
+def tags():
+    """
+    list of available tags
+    """
+    q = "SELECT tags FROM urls"
+    conn = sqlite3.connect(db_path)
+    c = conn.cursor()
+    tags = []
+    for tag, in c.execute(q):
+        tag = tag.split(' ')
+        tags.extend(tag)
+    tags = sorted(list(set(tags)))
+    for t in tags:
+        print(t)
+
+
+def tag(q='', *, id=-1):
     """
     override the tags of urls
 
     q : str
         keywords to search for separated by space
+    id : int
+        id of a specific url to tag
 
     Examples:
 
     bm tag
 
     bm tag 'deep learning video'
+
+    bm tag --id=141
     """
-    keywords = q.split(' ')
-    w = _search_request(keywords)
-    if q == '':
-        q = "SELECT id, url, title FROM urls WHERE tags=''"
+    if id < 0:
+        keywords = q.split(' ')
+        w = _search_request(keywords)
+        if q == '':
+            q = "SELECT id, url, title FROM urls WHERE tags=''"
+        else:
+            q = "SELECT id, url, title FROM urls WHERE {}".format(w)
     else:
-        q = "SELECT id, url, title FROM urls WHERE {}".format(w)
+        q = "SELECT * FROM urls WHERE id={}".format(id)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     for id_, url, title in c.execute(q):
@@ -262,4 +285,4 @@ def _search_request(keywords):
 
 
 if __name__ == '__main__':
-    run([a, ls, rm, export, tag, reset_views])
+    run([a, ls, rm, export, tag, reset_views, tags])
