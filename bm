@@ -113,7 +113,10 @@ def export(out):
 def tag(q=''):
     keywords = q.split(' ')
     w = _search_request(keywords)
-    q = "SELECT id, url, title FROM urls WHERE tags=''"
+    if q == '':
+        q = "SELECT id, url, title FROM urls WHERE tags=''"
+    else:
+        q = "SELECT Id, url, title FROM urls WHERE {}".format(w)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     for id_, url, title in c.execute(q):
