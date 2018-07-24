@@ -54,7 +54,7 @@ def a(url, *, desc='', tags=''):
         print('Failed, url "{}" Already exists in the database.'.format(url))
 
 
-def ls(q='', *, id=-1, tags='', sort_by='views', trim=True, open=False):
+def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, open=False):
     """
     display the list of urls in the bookmark
 
@@ -72,7 +72,8 @@ def ls(q='', *, id=-1, tags='', sort_by='views', trim=True, open=False):
     open : true or false
         whether to open the first url in the diplayed list
         in the browser
-
+    nb : int
+        number of rows to display
     Examples:
 
     bm ls
@@ -132,7 +133,8 @@ def ls(q='', *, id=-1, tags='', sort_by='views', trim=True, open=False):
             url = _format(url, max_length=max_length)
             title = _format(title, max_length=max_length)
         rows.append((id_, url, title, views))
-
+    if nb > 0:
+        rows = rows[0:nb]
     print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
 
     if open:
