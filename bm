@@ -54,7 +54,7 @@ def a(url, *, desc='', tags=''):
         print('Failed, url "{}" Already exists in the database.'.format(url))
 
 
-def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, open=False):
+def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, open=False, mode='and'):
     """
     display the list of urls in the bookmark
 
@@ -95,7 +95,7 @@ def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, open=False):
 
     conn = sqlite3.connect(db_path)
     keywords = q.split(' ')
-    w = _search_request(keywords)
+    w = _search_request(keywords, mode=mode)
     if tags != '':
         tags = tags.split(' ')
         wtags = ["tags LIKE '{}'".format(tag) for tag in tags]
@@ -150,7 +150,7 @@ def _format(s, max_length=50):
     return s
 
 
-def rm(q='', *, id=-1):
+def rm(q='', *, id=-1, mode='and'):
     """
     remove a list of urls or one url
     from the bookmarks database
@@ -168,7 +168,7 @@ def rm(q='', *, id=-1):
     """
     if id < 0:
         keywords = q.split(' ')
-        w = _search_request(keywords)
+        w = _search_request(keywords, mode=mode)
         q = "SELECT * FROM urls WHERE {}".format(w)
     else:
         q = "SELECT * FROM urls WHERE id={}".format(id)
@@ -222,7 +222,7 @@ def tags():
         print(t)
 
 
-def tag(q='', *, id=-1):
+def tag(q='', *, id=-1, mode='and'):
     """
     override the tags of urls
 
@@ -241,7 +241,7 @@ def tag(q='', *, id=-1):
     """
     if id < 0:
         keywords = q.split(' ')
-        w = _search_request(keywords)
+        w = _search_request(keywords, mode=mode)
         if q == '':
             q = "SELECT id, url, title FROM urls WHERE tags=''"
         else:
@@ -279,14 +279,18 @@ def _get_title(url):
     return soup.title.text
 
 
-def _search_request(keywords):
+def _search_request(keywords, mode='and'):
     """
     Get the where part of sql query title or url should
     match any of the keywords
 
     keywords : list of str
     """
-    w = ' OR '.join([
+    if mode == 'and':
+        method = ' AND '
+    elif mode == 'or':
+        method = ' OR '
+    w = method.join([
         "title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords
     ])
     return w
