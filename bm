@@ -7,6 +7,7 @@ from bs4 import BeautifulSoup
 import requests
 from tabulate import tabulate
 import pandas as pd
+pd.set_option('display.max_colwidth', -1)
 
 db_path = os.path.join(os.getenv('HOME'), '.bm.db')
 
@@ -184,7 +185,7 @@ def rm(q='', *, id=-1, mode='and'):
     conn.commit()
 
 
-def export(out):
+def export_csv(out):
     """
     export the database into csv
 
@@ -195,16 +196,41 @@ def export(out):
 
     bm export out.csv
     """
-    q = "SELECT * FROM urls"
+    df = _export_dataframe()
+    df.to_csv(out, index=False)
+
+
+def _export_dataframe(order_by='views'):
+    q = "SELECT id, time, url, title, tags, views FROM urls ORDER BY {}".format(order_by)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     rows = []
     for row in c.execute(q):
         rows.append(row)
-    cols = ['id_', 'time', 'url', 'title', 'desc', 'tags', 'views']
-    df = pd.DataFrame(rows, index=False, columns=cols)
-    df.to_csv(out)
+    cols = ['id', 'time', 'url', 'title',  'tags', 'views']
+    df = pd.DataFrame(rows, columns=cols)
+    df['url'] = df['url'].apply(to_link)
+    return df
 
+
+def export_html(out, *, order_by='views'):
+    df = _export_dataframe(order_by=order_by)
+    df['time'] = pd.to_datetime(df['time']).apply(to_date)
+    df.to_html(
+        out, 
+        index=False, 
+        escape=False,
+        col_space=100,
+    )
+
+
+
+def to_date(time):
+    return time.date()
+
+
+def to_link(url):
+    return '<a href="{url}">{url}</a>'.format(url=url)
 
 def tags():
     """
@@ -297,4 +323,4 @@ def _search_request(keywords, mode='and'):
 
 
 if __name__ == '__main__':
-    run([a, ls, rm, export, tag, reset_views, tags])
+    run([a, ls, rm, export_csv, export_html, tag, reset_views, tags])
