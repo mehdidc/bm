@@ -325,25 +325,28 @@ def _search_request(keywords, mode='and'):
 def recommand(*, nb=5, id=-1, open=False):
     from functools import partial
     import numpy as np
+    from sklearn.feature_extraction.text import TfidfVectorizer
     df = _export_dataframe()
     titles = _get_active_window_titles()
-    edit_distances_list = []
-    for title in titles:
-        edit_distances = df['title'].apply(partial(edit_distance_ratio, title))
-        edit_distances_list.append(edit_distances)
-    edit_distances = pd.concat(edit_distances_list, axis=1)
-    edit_distances = edit_distances.mean(axis=1)
-    df['edit_distances'] = edit_distances
-    df = df.sort_values(by='edit_distances', ascending=False)
+    similarities_list = []
+    df['url_title'] = df.apply(lambda d:'{} {}'.format(d['url'], d['title']), axis=1)
+    tfidf = TfidfVectorizer().fit(df['url_title'].values.tolist())
+    for i, title in enumerate(titles):
+        func = partial(similar, tfidf, title)
+        df['sim_{}'.format(i)] = df['title'].apply(partial(similar, tfidf, title))
+    df['sim'] = df.filter(like='sim_', axis=1).max(axis=1)
+    df = df.sort_values(by='sim', ascending=False)
     df = df.iloc[0:nb]
-    cols = df[['id', 'url', 'edit_distances']].to_dict(orient='list')
+    df['url_full'] = df['url'].copy()
+    df['url'] = df['url'].apply(partial(_format, max_length=100))
+    cols = df[['id', 'url', 'sim']].to_dict(orient='list')
     print(tabulate(cols, headers='keys'))
     if open:
         import webbrowser
         if id >=0:
-            url = df.set_index('id').loc[id]['url']
+            url = df.set_index('id').loc[id]['url_full']
         else:
-            url = df.iloc[0]['url']
+            url = df.iloc[0]['url_full']
         webbrowser.open(url)
 
 def _get_active_window_titles():
@@ -357,17 +360,25 @@ def _get_active_window_titles():
             continue
         _, state, _, *rest = re.split('[ \t]+', line)
         title = ' '.join(rest)
-        if state in ("0", "1"):
-            titles.append(title)
+        if state != "-1":
+            if ' - ' in title:
+                title, *rest = title.split(' - ')
+                titles.append(title)
     return titles
 
 
+def similar(tfidf, a, b):
+    import numpy as np
+    x = tfidf.transform([a, b])
+    x = np.array(x.todense())
+    av = x[0]
+    bv = x[1]
+    eps = 1e-10
+    return np.dot(av, bv) / ((np.linalg.norm(av)+eps) * (np.linalg.norm(bv) + eps))
 
-def edit_distance_ratio(a, b):
-    from difflib import SequenceMatcher
-    a = a.lower()
-    b = b.lower()
-    return SequenceMatcher(None, a, b).ratio()
+
+def _tokenize(s):
+    return re.split(r'[ \t\./-]+',  s)
 
 if __name__ == '__main__':
     run([a, ls, rm, export_csv, export_html, tag, reset_views, tags, recommand])
