@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import os
+import re
 from clize import run
 from datetime import datetime
 import sqlite3
@@ -209,12 +210,12 @@ def _export_dataframe(order_by='views'):
         rows.append(row)
     cols = ['id', 'time', 'url', 'title',  'tags', 'views']
     df = pd.DataFrame(rows, columns=cols)
-    df['url'] = df['url'].apply(to_link)
     return df
 
 
 def export_html(out, *, order_by='views'):
     df = _export_dataframe(order_by=order_by)
+    df['url'] = df['url'].apply(to_link)
     df['time'] = pd.to_datetime(df['time']).apply(to_date)
     df.to_html(
         out, 
@@ -321,6 +322,52 @@ def _search_request(keywords, mode='and'):
     ])
     return w
 
+def recommand(*, nb=5, id=-1, open=False):
+    from functools import partial
+    import numpy as np
+    df = _export_dataframe()
+    titles = _get_active_window_titles()
+    edit_distances_list = []
+    for title in titles:
+        edit_distances = df['title'].apply(partial(edit_distance_ratio, title))
+        edit_distances_list.append(edit_distances)
+    edit_distances = pd.concat(edit_distances_list, axis=1)
+    edit_distances = edit_distances.mean(axis=1)
+    df['edit_distances'] = edit_distances
+    df = df.sort_values(by='edit_distances', ascending=False)
+    df = df.iloc[0:nb]
+    cols = df[['id', 'url', 'edit_distances']].to_dict(orient='list')
+    print(tabulate(cols, headers='keys'))
+    if open:
+        import webbrowser
+        if id >=0:
+            url = df.set_index('id').loc[id]['url']
+        else:
+            url = df.iloc[0]['url']
+        webbrowser.open(url)
+
+def _get_active_window_titles():
+    from subprocess import check_output
+    output = check_output('wmctrl -l', shell=True).decode()
+    lines = output.split("\n")
+    titles = []
+    for line in lines:
+        line = line.strip()
+        if len(line) == 0:
+            continue
+        _, state, _, *rest = re.split('[ \t]+', line)
+        title = ' '.join(rest)
+        if state in ("0", "1"):
+            titles.append(title)
+    return titles
+
+
+
+def edit_distance_ratio(a, b):
+    from difflib import SequenceMatcher
+    a = a.lower()
+    b = b.lower()
+    return SequenceMatcher(None, a, b).ratio()
 
 if __name__ == '__main__':
-    run([a, ls, rm, export_csv, export_html, tag, reset_views, tags])
+    run([a, ls, rm, export_csv, export_html, tag, reset_views, tags, recommand])
