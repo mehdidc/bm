@@ -91,7 +91,7 @@ def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, random=False,
 
     bm ls --id=142 --open
     """
-    if trim:
+    if trim and not random and not open:
         max_length = 50
     else:
         max_length = float('inf')
