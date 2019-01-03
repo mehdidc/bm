@@ -221,6 +221,7 @@ def export_html(out, *, order_by='views'):
     df = _export_dataframe(order_by=order_by)
     df['url'] = df['url'].apply(to_link)
     df['time'] = pd.to_datetime(df['time']).apply(to_date)
+    df = df.sort_values(by='time', ascending=False)
     content = df.to_html(
         index=False, 
         escape=False,
@@ -288,7 +289,7 @@ def tag(q='', *, id=-1, mode='and'):
         else:
             q = "SELECT id, url, title FROM urls WHERE {}".format(w)
     else:
-        q = "SELECT * FROM urls WHERE id={}".format(id)
+        q = "SELECT id, url, title FROM urls WHERE id={}".format(id)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
     for id_, url, title in c.execute(q):

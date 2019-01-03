@@ -23,4 +23,5 @@ setup(
     platforms='any',
     scripts=['bm'],
     install_requires=['clize', 'bs4', 'requests', 'tabulate', 'pandas'],
+    include_package_data=True,
 )
