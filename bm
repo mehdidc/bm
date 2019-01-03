@@ -131,6 +131,7 @@ def ls(keywords='', *, id='', sort_by='time', order='desc', nb=-1, trim=True, ra
                 order=order,
             )
         )
+    print(query)
     def _format_row(row):
         id, url, title, views, time = row
         url = _format(url, max_length=max_length)
