@@ -29,17 +29,17 @@ def a(url, *, desc='', tags=''):
 
     bm a "http://github/com/mehdidc/bm" --desc='bookmark in command line'
     """
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    c.execute(
+    db = sqlite3.connect(db_path)
+    db.execute(
         "CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key,"
         "time TIMESTAMP, url TEXT UNIQUE, title TEXT, "
         "description TEXT, tags TEXT, views INT)")
+    db.commit()
     time = datetime.now()
     title = _get_title(url)
     title = title.replace("'",  "")
     print('Adding url : {}, title : {}...'.format(url, title))
-    q = (
+    query = (
         "INSERT INTO urls VALUES("
         "NULL, '{time}', '{url}', '{title}', "
         "'{desc}', '{tags}', {views})".format(
@@ -51,27 +51,27 @@ def a(url, *, desc='', tags=''):
             views=0)
     )
     try:
-        c.execute(q)
-        conn.commit()
+        db.execute(query)
+        db.commit()
     except sqlite3.IntegrityError:
         print('Failed, url "{}" Already exists in the database.'.format(url))
 
 
-def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, random=False, open=False, mode='and'):
+def ls(keywords='', *, id=-1, sort_by='time', order='desc', nb=-1, trim=True, random=False, open=False, query_mode='and', fields='all'):
     """
     display the list of urls in the bookmark
 
-    q : str
+    keywords : str
         list of keywords separated by space
         to search for in the urls or titles or tags
     id : int
         specic id of a url to display (optional)
-    tags : str
-        specify tags separated by space to search for
     sort_by : str
         sort the urls by 'views' or 'id' or 'url' or 'time'
-    trim : true or false
+    trim : bool
         whether to trim long urls or titles
+    random: bool
+        whether the result is in random order
     open : true or false
         whether to open the first url in the diplayed list
         in the browser
@@ -91,58 +91,60 @@ def ls(q='', *, id=-1, tags='', sort_by='views', nb=-1, trim=True, random=False,
 
     bm ls --id=142 --open
     """
-    if trim and not random and not open:
-        max_length = 50
-    else:
-        max_length = float('inf')
-
-    conn = sqlite3.connect(db_path)
-    keywords = q.split(' ')
-    w = _search_request(keywords, mode=mode)
-    if tags != '':
-        tags = tags.split(' ')
-        wtags = ["tags LIKE '{}'".format(tag) for tag in tags]
-        wtags = ' OR '.join(wtags)
-        if q == '':
-            w = wtags
-        else:
-            w = "({}) AND ({})".format(w, wtags)
-
+    order = order.upper()
+    assert order in ('DESC', 'ASC')
+    assert query_mode in ('and', 'or')
+    assert fields == 'all' or all([f in ('title', 'desc', 'tags', 'url') for f in fields.split(',')])
+    max_length = 50 if trim and not random and not open else float('inf')
+    db = sqlite3.connect(db_path)
+    keywords_list = keywords.split(' ')
+    where_request = _build_where_request(
+        keywords, 
+        query_mode=query_mode, 
+        fields=fields
+    )
     # update nb of views only when we search for something
-    if q != '':
-        q = "UPDATE urls SET views = views + 1 WHERE {w}".format(w=w)
-        c = conn.cursor()
-        c.execute(q)
-        conn.commit()
-
+    if keywords != '':
+        query = "UPDATE urls SET views = views + 1 WHERE {where_request}".format(where_request=where_request)
+        db.execute(query)
+        db.commit()
+    
+    # Prepare the search query depending on the situation
     if id >= 0:
-        q = (
+        #ID given, show exactly one url
+        query = (
             "SELECT id, url, title, views, time FROM urls "
             "WHERE id={}".format(id)
         )
+    elif keywords == '':
+        #no keyword, return all urls
+        query = 'SELECT id, url, title, views, time FROM urls ORDER BY {sort_by} {order}'.format(
+            sort_by=sort_by, order=order)
     else:
-        q = (
+        #keywords given, look for urls which match the keywords
+        query = (
             "SELECT id, url, title, views, time FROM urls WHERE "
-            "{w} ORDER BY {sort_by} DESC".format(
-                w=w,
-                sort_by=sort_by
+            "{where_request} ORDER BY {sort_by} {order}".format(
+                where_request=where_request,
+                sort_by=sort_by,
+                order=order,
             )
         )
-    c = conn.cursor()
-    rows = []
-    for row in (c.execute(q)):
-        id_, url, title, views, time = row
-        if id < 0:
-            url = _format(url, max_length=max_length)
-            title = _format(title, max_length=max_length)
-        rows.append((id_, url, title, views))
+    def _format_row(row):
+        id, url, title, views, time = row
+        url = _format(url, max_length=max_length)
+        title = _format(title, max_length=max_length)
+        return id, url, title, views
+    # Get the results from DB
+    rows = db.execute(query)
+    rows = map(_format_row, rows)
+    rows = list(rows)
     if random:
         idx = randint(0, len(rows))
         rows = rows[idx:idx + 1]
     if nb > 0:
         rows = rows[0:nb]
     print(tabulate(rows, headers=['id', 'url', 'title', 'views']))
-
     if open:
         import webbrowser
         _, url, _, _ = rows[0]
@@ -156,12 +158,12 @@ def _format(s, max_length=50):
     return s
 
 
-def rm(q='', *, id=-1, mode='and'):
+def rm(keywords='', *, id=-1, query_mode='and', fields='all'):
     """
     remove a list of urls or one url
     from the bookmarks database
 
-    q : str
+    keywords : str
         list of keywords to search for separated by space
     id : int
         id of a specific url to remove (optional)
@@ -172,22 +174,26 @@ def rm(q='', *, id=-1, mode='and'):
 
     bm rm 'deep learning video'
     """
-    if id < 0:
-        keywords = q.split(' ')
-        w = _search_request(keywords, mode=mode)
-        q = "SELECT * FROM urls WHERE {}".format(w)
+    assert (keywords and id==-1) or (id>=0 and not keywords)
+    if id == -1:
+        keywords_list = keywords.split(' ')
+        where_request = _build_where_request(
+            keywords_list
+            query_mode=query_mode, 
+            fields=fields
+        )
+        query = "SELECT * FROM urls WHERE {}".format(where_request)
     else:
-        q = "SELECT * FROM urls WHERE id={}".format(id)
-    conn = sqlite3.connect(db_path)
-    c = conn.cursor()
-    for row in c.execute(q):
-        id_, url, *rest = row
+        query = "SELECT * FROM urls WHERE id={}".format(id)
+    db = sqlite3.connect(db_path)
+    for row in db.execute(query):
+        id, url, *rest = row
         response = ''
         while response not in ('y', 'n'):
             print('Delete {} ? (y/n)'.format(url), end='')
             response = input()
             c.execute("DELETE FROM urls WHERE id={}".format(id_))
-    conn.commit()
+    db.commit()
 
 
 def export_csv(out):
@@ -321,21 +327,28 @@ def _get_title(url):
     return soup.title.text
 
 
-def _search_request(keywords, mode='and'):
+def _build_where_request(keywords, query_mode='and', fields='all'):
     """
     Get the where part of sql query title or url should
     match any of the keywords
 
     keywords : list of str
     """
-    if mode == 'and':
+    if fields == 'all':
+       fields = 'title,url,description,tags'
+    req = [
+        field + " LIKE '%{q}%'"
+        for field in fields.split(',')
+    ]
+    req = ' OR '.join(req)
+    if query_mode == 'and':
         method = ' AND '
-    elif mode == 'or':
+    elif query_mode == 'or':
         method = ' OR '
-    w = method.join([
-        "title LIKE '%{q}%' OR url LIKE '%{q}%'".format(q=k) for k in keywords
-    ])
-    return w
+    else:
+        raise ValueError(method)
+    search_req = method.join([req.format(q=k) for k in keywords])
+    return search_req
 
 def recommand(*, nb=5, id=-1, open=False):
     from functools import partial
