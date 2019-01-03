@@ -98,9 +98,8 @@ def ls(keywords='', *, id='', sort_by='time', order='desc', nb=-1, trim=True, ra
     assert fields == 'all' or all([f in ('title', 'desc', 'tags', 'url') for f in fields.split(',')])
     max_length = 50 if trim and not random and not open else float('inf')
     db = sqlite3.connect(db_path)
-    keywords_list = keywords.split(' ')
     where_request = _build_where_request(
-        keywords, 
+        keywords.split(' '), 
         query_mode=query_mode, 
         fields=fields
     )
@@ -131,7 +130,6 @@ def ls(keywords='', *, id='', sort_by='time', order='desc', nb=-1, trim=True, ra
                 order=order,
             )
         )
-    print(query)
     def _format_row(row):
         id, url, title, views, time = row
         url = _format(url, max_length=max_length)
@@ -182,9 +180,8 @@ def rm(keywords='', *, id='', query_mode='and', fields='all'):
     if id:
         query = "SELECT id, url, title FROM urls WHERE id={}".format(id)
     else:
-        keywords_list = keywords.split(' ')
         where_request = _build_where_request(
-            keywords_list,
+            keywords.split(' '),
             query_mode=query_mode, 
             fields=fields
         )
@@ -295,9 +292,8 @@ def tag(keywords='', *, id='', query_mode='and', fields='all'):
     if id:
         query = "SELECT id, url, title FROM urls WHERE id={}".format(id)
     else:
-        keywords_list = keywords.split(' ')
         where_request = _build_where_request(
-            keywords_list, 
+            keywords.split(' '), 
             query_mode=query_mode,
             fields=fields
         )
