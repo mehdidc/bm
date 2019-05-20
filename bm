@@ -65,6 +65,7 @@ def ls(
     trim=True,
     random=False,
     open=False,
+    open_all=False,
     query_mode="and",
     fields="all"
 ):
@@ -84,6 +85,9 @@ def ls(
         whether the result is in random order
     open : true or false
         whether to open the first url in the diplayed list
+        in the browser
+    open-all : true or false
+        whether to open all urls in the displayed list
         in the browser
     nb : int
         number of rows to display
@@ -108,7 +112,7 @@ def ls(
     assert fields == "all" or all(
         [f in ("title", "desc", "tags", "url") for f in fields.split(",")]
     )
-    max_length = 50 if trim and not random and not open else float("inf")
+    max_length = 50 if trim and not random and not open and not open_all else float("inf")
     db = sqlite3.connect(db_path)
     where_request = _build_where_request(
         keywords.split(" "), query_mode=query_mode, fields=fields
@@ -160,6 +164,10 @@ def ls(
 
         _, url, _, _ = rows[0]
         webbrowser.open(url)
+    if open_all:
+        import webbrowser
+        for _, url, _, _ in rows:
+            webbrowser.open(url)
 
 
 def _format(s, max_length=50):
