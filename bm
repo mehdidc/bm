@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import os
 import re
-from subprocess import call
+from subprocess import call, TimeoutExpired
 from clize import run
 from datetime import datetime
 import sqlite3
@@ -447,8 +447,10 @@ def update_cache():
 
 
 def _get_cached(title, url, reset=False):
-    slug = title
+    slug = url
     slug = slug.replace(" ", "_")
+    slug = slug.replace("/", "_")
+    slug = slug.replace(":", "_")
     slug = slug.lower()
     filename = slug + ".pdf"
     filename_full_path = os.path.join(cache_path, filename)
@@ -459,9 +461,14 @@ def _get_cached(title, url, reset=False):
 
 
 def _cache(url, out_path):
-    cmd = f"{chrome} --headless  --disable-gpu --print-to-pdf={out_path} {url}"
-    call(cmd, shell=True)
-    return out_path
+    print(f"Caching {url} to {out_path}")
+    cmd = f"{chrome} --headless  --disable-gpu --print-to-pdf='{out_path}' '{url}'"
+    try:
+       call(cmd, shell=True, timeout=60)
+    except TimeoutExpired:
+        return None
+    else:
+        return out_path
 
 
 def _tokenize(s):
