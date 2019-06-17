@@ -454,7 +454,8 @@ def _get_cached(title, url, reset=False):
     slug = slug.lower()
     filename = slug + ".pdf"
     filename_full_path = os.path.join(cache_path, filename)
-    if os.path.exists(filename_full_path) and not reset:
+    #if os.path.exists(filename_full_path) and not reset:
+    if "arxiv" not in url:
         return filename_full_path
     else:
         return _cache(url, filename_full_path)
@@ -462,9 +463,15 @@ def _get_cached(title, url, reset=False):
 
 def _cache(url, out_path):
     print(f"Caching {url} to {out_path}")
-    cmd = f"{chrome} --headless  --disable-gpu --print-to-pdf='{out_path}' '{url}'"
+    if "arxiv" in url:
+        url = url.replace("/abs/", "/pdf/") + ".pdf"
+        cmd = f"curl --output '{out_path}' '{url}'"
+    elif url.endswith(".pdf"):
+        cmd = f"curl --output '{out_path}' '{url}'"
+    else:
+        cmd = f"{chrome} --headless  --disable-gpu --print-to-pdf='{out_path}' '{url}'"
     try:
-       call(cmd, shell=True, timeout=60)
+        call(cmd, shell=True, timeout=60)
     except TimeoutExpired:
         return None
     else:
