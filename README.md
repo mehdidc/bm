@@ -3,7 +3,7 @@
 Simple bookmark manager that uses SQLite to store the links.
 It supports:
 
-- searching for urls in the database based on keywords (bm ls --help and bm recommand --help 
+- searching for urls in the database based on keywords (bm ls --help and bm recommend --help 
 for more details)
 - tagging the urls (bm tag --help)
 - opening the urls in the browser (bm ls --help|grep open-in-browser)

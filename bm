@@ -442,12 +442,12 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
     return search_req
 
 
-def recommand(
+def recommend(
     keywords="", *, nb=5, id="", open_in_browser=False, open_all=False, open_pdf=False
 ):
     """
-    recommand links based either on keywords or on the active window titles
-    in XORG. The recommandation is based on the TF-IDF similarity between keywords 
+    recommend links based either on keywords or on the active window titles
+    in XORG. The recommendation is based on the TF-IDF similarity between keywords 
     (or titles of active windows) and the url/title of url. It's an alternative to "ls" 
     which looks for hard matching between keywords and urls.
     
@@ -461,13 +461,13 @@ def recommand(
 
     Examples:
 
-    bm recommand #here it just uses active window titles to look for matches
+    bm recommend #here it just uses active window titles to look for matches
     
-    bm recommand "deep learning" #here it uses the keywords "deep" and "learning" to look for matches
+    bm recommend "deep learning" #here it uses the keywords "deep" and "learning" to look for matches
 
-    bm recommand "deep learning" --nb=5 --open-in-browser
+    bm recommend "deep learning" --nb=5 --open-in-browser
 
-    bm recommand "deep learning" --nb=5 --open-pdf
+    bm recommend "deep learning" --nb=5 --open-pdf
 
     """
     from functools import partial
@@ -589,8 +589,12 @@ def _cache(url, dest):
     try:
         call(cmd, shell=True, timeout=60)
     except TimeoutExpired:
-        with open(dest, "w") as _:
-            pass
+        pass
+    finally:
+        if not os.path.exists(dest):
+            with open(dest, "w") as _:
+                pass
+
 
 
 def _tokenize(s):
@@ -618,7 +622,7 @@ if __name__ == "__main__":
             tag,
             reset_views,
             tags,
-            recommand,
+            recommend,
             update_cache,
         ]
     )
