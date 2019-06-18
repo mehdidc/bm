@@ -27,11 +27,12 @@ def a(url, *, desc="", tags=""):
 
     Examples:
 
-    bm a "http://github.com/mehdidc/bm"
+    bm a "https://www.sqlite.org/docs.html"
 
-    bm a "http://github.com/mehdidc/bm" --tags='bm bookmark'
+    bm a "https://www.sqlite.org/docs.html" --desc='sqlite documentation' 
+    
+    bm a "https://www.sqlite.org/docs.html" --tags='database documentation reference' # 3 tags, "database", "documentation", and "reference"
 
-    bm a "http://github/com/mehdidc/bm" --desc='bookmark in command line'
     """
     db = sqlite3.connect(db_path)
     db.execute(
@@ -121,29 +122,35 @@ def ls(
 
     Examples:
 
-    bm ls
+    bm ls # display all
 
-    bm ls 'deep learning video'
-
-    bm ls --id=142
-
-    bm ls --tags='video'
-
-    bm ls 'deep learning video' --trim=false
-
-    bm ls --id=142 --open-in-browser
+    bm ls 'health insurance' #look for "health" and "insurance" (both should be present) in urls, titles, tags and description.
     
-    bm ls 'machine learning' --open-in-browser --open-all
+    bm ls 'health insurance' --query-mode=or # look for either "health" OR "insurance" (any should be present) in urls, titles, tags, and description)
 
-    bm ls 'machine learning' --open-pdf --open-all
+    bm ls 'health insurance' --nb=5 # show 5 first (sorted by time)
 
-    bm ls 'architecture' --fields='title,url' --query-mode=or
+    bm ls 'health insurance' --nb=10 --sort-by=views # show 10 first (sorted by views desc)
 
-    bm ls 'health' --nb=5
+    bm ls 'health insurance' --nb=10 --sort-by=views --order=asc #  show 10 first (sorted by views asc)
 
-    bm ls 'health' --nb=5 --random
+    bm ls --random #show urls in random order
+    
+    bm ls --random --nb=5 # show 5 randomly chosen urls
 
-    bm ls 'health' --nb=10 --sort-by=views --order=desc
+    bm ls 'health insurance' --random --nb=5 # show 5 randomly chosen urls which contain they keywords "health" and "insurance"
+
+    bm ls --id=142 #look for a specfic url (each url has an id)
+
+    bm ls --tags='video' #look for all urls tagged as "video"
+
+    bm ls --trim=false  #do not trim the urls (trimming is used to constrain the urls to be in one line)
+
+    bm ls --id=142 --open-in-browser #open a specific url in the browser
+    
+    bm ls 'machine learning' --open-in-browser --open-all # open all machine learning related urls in browser
+
+    bm ls 'machine learning' --open-pdf --open-all # open all machine learning  related urls in pdf (cached version)
 
     """
     order = order.upper()
@@ -238,7 +245,7 @@ def rm(keywords="", *, id="", query_mode="and", fields="all"):
 
     bm rm --id=143
 
-    bm rm 'deep learning video'
+    bm rm 'health insurance'
     """
     assert (keywords and id == "") or (int(id) >= 0 and not keywords)
     assert query_mode in ("and", "or")
@@ -281,6 +288,10 @@ def export_csv(out):
 def export_html(out, *, order_by="views"):
     """
     export the database into HTML
+
+    Examples:
+
+    bm export out.html
     """
     df = _export_db_to_dataframe(order_by=order_by)
     df["url"] = df["url"].apply(_url_to_html_link)
@@ -352,7 +363,7 @@ def tag(keywords="", *, id="", query_mode="and", fields="all"):
 
     bm tag
 
-    bm tag 'deep learning video'
+    bm tag 'health'
 
     bm tag --id=141
     """
