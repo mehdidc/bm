@@ -362,11 +362,11 @@ def tag(keywords="", *, id="", query_mode="and", fields="all"):
     
     Examples:
 
-    bm tag
+    bm tag #look for urls without tags to tag them
 
-    bm tag 'health'
+    bm tag 'health' # override tags of the urls matching "health"
 
-    bm tag --id=141
+    bm tag --id=141 # override tags of a specific url
     """
     assert (keywords and id == "") or (int(id) >= 0 and not keywords)
     assert query_mode in ("and", "or")
@@ -374,21 +374,25 @@ def tag(keywords="", *, id="", query_mode="and", fields="all"):
         [f in ("title", "desc", "tags", "url") for f in fields.split(",")]
     )
     if id:
-        query = "SELECT id, url, title FROM urls WHERE id={}".format(id)
+        query = "SELECT id, url, title, tags FROM urls WHERE id={}".format(id)
     else:
         where_request = _build_where_request(
             keywords.split(" "), query_mode=query_mode, fields=fields
         )
         if keywords == "":
-            query = "SELECT id, url, title FROM urls WHERE tags=''"
+            query = "SELECT id, url, title, tags FROM urls WHERE tags=''"
         else:
-            query = "SELECT id, url, title FROM urls WHERE {}".format(where_request)
+            query = "SELECT id, url, title, tags FROM urls WHERE {}".format(where_request)
     conn = sqlite3.connect(db_path)
     c = conn.cursor()
-    for id_, url, title in c.execute(query):
-        print(url)
-        print(title)
-        print("New tag ?", end="")
+    for id_, url, title, tags in c.execute(query):
+        print(f"'{url}, '{title}'")
+        if not tags:
+            print("No tags with this url")
+            print("New tags ? ", end="")
+        else:
+            print(f"Current tags: {tags}")
+            print("Override tags ?", end="")
         tag = input()
         if tag != "":
             conn.execute("UPDATE urls SET tags='{}' WHERE id={}".format(tag, id_))
