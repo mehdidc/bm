@@ -9,7 +9,7 @@ from bs4 import BeautifulSoup
 import requests
 from tabulate import tabulate
 import pandas as pd
-from random import randint
+from random import shuffle
 
 pd.set_option("display.max_colwidth", -1)
 db_path = os.path.join(os.getenv("HOME"), ".bm.db")
@@ -161,7 +161,7 @@ def ls(
     )
     max_length = (
         50
-        if trim and not random and not open_in_browser and not open_pdf and not open_all
+        if trim and not open_in_browser and not open_pdf and not open_all
         else float("inf")
     )
     db = sqlite3.connect(db_path)
@@ -205,7 +205,7 @@ def ls(
     rows = map(_format_row, rows)
     rows = list(rows)
     if random:
-        random.shuffle(rows)
+        shuffle(rows)
     if nb > 0:
         rows = rows[0:nb]
     print(tabulate(rows, headers=["id", "url", "title", "views"]))
@@ -243,9 +243,10 @@ def rm(keywords="", *, id="", query_mode="and", fields="all"):
 
     Examples:
 
-    bm rm --id=143
+    bm rm --id=143 #remove a specific url
 
-    bm rm 'health insurance'
+    bm rm 'health insurance' #remove all urls which match the keywords "health" and "insurance"
+
     """
     assert (keywords and id == "") or (int(id) >= 0 and not keywords)
     assert query_mode in ("and", "or")
