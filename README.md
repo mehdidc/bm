@@ -10,7 +10,7 @@ for more details)
 - caching the content of the urls in PDFs and opening the PDFs (bm ls --help|grep open-pdf)
 - exporting the database to CSV and HTML
 
-# Usage
+# Usage Examples
 
 ## Add link
 
