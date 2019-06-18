@@ -376,7 +376,6 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
     else:
         raise ValueError(method)
     search_req = method.join([req.format(q=k) for k in keywords])
-    print(search_req)
     return search_req
 
 
