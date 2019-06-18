@@ -67,7 +67,7 @@ def ls(
     nb=-1,
     trim=True,
     random=False,
-    open=False,
+    open_in_browser=False,
     open_pdf=False,
     open_all=False,
     query_mode="and",
@@ -79,22 +79,45 @@ def ls(
     keywords : str
         list of keywords separated by space
         to search for in the urls or titles or tags
+
     id : int
         specic id of a url to display
+
     sort_by : str
         sort the urls by 'views' or 'id' or 'url' or 'time'
+
+    order: str
+        asc or desc
+
+    nb : int
+        number of urls to display
+
     trim : bool
         whether to trim long urls or titles
+
     random: bool
         whether the result is in random order
-    open : true or false
-        whether to open the first url in the diplayed list
+
+    open-in-browser : true or false
+        whether to open the first url (or all of them if "open-all") in the diplayed list
         in the browser
+
+    open-pdf : true or false
+        whether to open the cached pdfs of the pages (alternative to 'open-in-browser')
+
     open-all : true or false
         whether to open all urls in the displayed list
-        in the browser
-    nb : int
-        number of rows to display
+        (works along with 'open-in-browser' or 'open-pdf')
+
+    query_mode : str
+        either "and" or "or"
+        specify whether ALL keywords ("and") of the query must be in the
+        url or any of them ("or").
+
+    fields : str
+        specify the fields where to look for the keywords.
+        it should be either "all" or  "title", "desc", "tags", "url"
+        separated by commas, e.g., fields could be "title,desc".
 
     Examples:
 
@@ -108,7 +131,20 @@ def ls(
 
     bm ls 'deep learning video' --trim=false
 
-    bm ls --id=142 --open
+    bm ls --id=142 --open-in-browser
+    
+    bm ls 'machine learning' --open-in-browser --open-all
+
+    bm ls 'machine learning' --open-pdf --open-all
+
+    bm ls 'architecture' --fields='title,url' --query-mode=or
+
+    bm ls 'health' --nb=5
+
+    bm ls 'health' --nb=5 --random
+
+    bm ls 'health' --nb=10 --sort-by=views --order=desc
+
     """
     order = order.upper()
     assert order in ("DESC", "ASC")
@@ -117,7 +153,9 @@ def ls(
         [f in ("title", "desc", "tags", "url") for f in fields.split(",")]
     )
     max_length = (
-        50 if trim and not random and not open and not open_all else float("inf")
+        50
+        if trim and not random and not open_in_browser and not open_pdf and not open_all
+        else float("inf")
     )
     db = sqlite3.connect(db_path)
     where_request = _build_where_request(
@@ -160,13 +198,12 @@ def ls(
     rows = map(_format_row, rows)
     rows = list(rows)
     if random:
-        idx = randint(0, len(rows))
-        rows = rows[idx : idx + 1]
+        random.shuffle(rows)
     if nb > 0:
         rows = rows[0:nb]
     print(tabulate(rows, headers=["id", "url", "title", "views"]))
 
-    if open or open_all or open_pdf:
+    if open_in_browser or open_all or open_pdf:
         if not open_all:
             rows = rows[0:1]
         if open_pdf:
@@ -194,6 +231,8 @@ def rm(keywords="", *, id="", query_mode="and", fields="all"):
         list of keywords to search for separated by space
     id : int
         id of a specific url to remove (optional)
+
+    for "query_mode" and "fields", check the definition of "ls"
 
     Examples:
 
@@ -240,10 +279,12 @@ def export_csv(out):
 
 
 def export_html(out, *, order_by="views"):
-
+    """
+    export the database into HTML
+    """
     df = _export_db_to_dataframe(order_by=order_by)
-    df["url"] = df["url"].apply(url_to_html_link)
-    df["time"] = pd.to_datetime(df["time"]).apply(datetime_to_date)
+    df["url"] = df["url"].apply(_url_to_html_link)
+    df["time"] = pd.to_datetime(df["time"]).apply(_datetime_to_date)
     df = df.sort_values(by="time", ascending=False)
     content = df.to_html(index=False, escape=False, col_space=100)
     html = """
@@ -275,11 +316,11 @@ def _export_db_to_dataframe(order_by="views"):
     return df
 
 
-def datetime_to_date(time):
+def _datetime_to_date(time):
     return time.date()
 
 
-def url_to_html_link(url):
+def _url_to_html_link(url):
     return '<a href="{url}">{url}</a>'.format(url=url)
 
 
@@ -297,13 +338,16 @@ def tags():
 
 def tag(keywords="", *, id="", query_mode="and", fields="all"):
     """
-    override the tags of urls
+    add/override tags of urls interactively
 
-    q : str
+    keywords : str
         keywords to search for separated by space
+    
     id : int
         id of a specific url to tag
 
+    for "query_mode" and "fields", check the definition of "ls"
+    
     Examples:
 
     bm tag
@@ -340,6 +384,9 @@ def tag(keywords="", *, id="", query_mode="and", fields="all"):
 
 
 def reset_views():
+    """
+    reset the number of views of ALL urls to 0
+    """
     conn = sqlite3.connect(db_path)
     q = "UPDATE urls SET views = 0"
     c = conn.cursor()
@@ -379,19 +426,48 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
     return search_req
 
 
-def recommand(q="", *, nb=5, id="", open=False, open_all=False, open_pdf=False):
+def recommand(
+    keywords="", *, nb=5, id="", open_in_browser=False, open_all=False, open_pdf=False
+):
+    """
+    recommand links based either on keywords or on the active window titles
+    in XORG. The recommandation is based on the TF-IDF similarity between keywords 
+    (or titles of active windows) and the url/title of url. It's an alternative to "ls" 
+    which looks for hard matching between keywords and urls.
+    
+    keywords : str
+        keywords separated by space, e.g., "deep learning machine"
+
+    nb : int
+        number of urls to display
+
+    for "open-in-browser", "open-pdf", "open-all", check "ls".
+
+    Examples:
+
+    bm recommand #here it just uses active window titles to look for matches
+    
+    bm recommand "deep learning" #here it uses the keywords "deep" and "learning" to look for matches
+
+    bm recommand "deep learning" --nb=5 --open-in-browser
+
+    bm recommand "deep learning" --nb=5 --open-pdf
+
+    """
     from functools import partial
     from sklearn.feature_extraction.text import TfidfVectorizer
 
     df = _export_db_to_dataframe()
-    if not q:
-        titles = _get_active_window_titles()
+    if keywords:
+        titles = keywords.split(" ")
     else:
-        titles = q.split(" ")
+        titles = _get_active_window_titles()
     df["url_title"] = df.apply(lambda d: "{} {}".format(d["url"], d["title"]), axis=1)
     tfidf = TfidfVectorizer().fit(df["url_title"].values.tolist())
     for i, title in enumerate(titles):
-        df["sim_{}".format(i)] = df["title"].apply(partial(similar, tfidf, title))
+        df["sim_{}".format(i)] = df["title"].apply(
+            partial(_similarity_score, tfidf, title)
+        )
     df["sim"] = df.filter(like="sim_", axis=1).max(axis=1)
     df = df.sort_values(by="sim", ascending=False)
     df = df.iloc[0:nb]
@@ -399,7 +475,7 @@ def recommand(q="", *, nb=5, id="", open=False, open_all=False, open_pdf=False):
     df["url"] = df["url"].apply(partial(_format, max_length=100))
     cols = df[["id", "url", "sim"]].to_dict(orient="list")
     print(tabulate(cols, headers="keys"))
-    if open or open_all or open_pdf:
+    if open_in_browser or open_all or open_pdf:
         if not open_all:
             df = df.iloc[0:1]
         if open_pdf:
@@ -412,6 +488,7 @@ def recommand(q="", *, nb=5, id="", open=False, open_all=False, open_pdf=False):
 
 
 def _get_active_window_titles():
+    # get active window titles in XORG
     from subprocess import check_output
 
     output = check_output("wmctrl -l", shell=True).decode()
@@ -430,7 +507,7 @@ def _get_active_window_titles():
     return titles
 
 
-def similar(tfidf, a, b):
+def _similarity_score(tfidf, a, b):
     import numpy as np
 
     x = tfidf.transform([a, b])
