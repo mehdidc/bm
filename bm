@@ -71,7 +71,7 @@ def ls(
     open_pdf=False,
     open_all=False,
     query_mode="and",
-    fields="all"
+    fields="all",
 ):
     """
     display the list of urls in the bookmark
@@ -116,7 +116,9 @@ def ls(
     assert fields == "all" or all(
         [f in ("title", "desc", "tags", "url") for f in fields.split(",")]
     )
-    max_length = 50 if trim and not random and not open and not open_all else float("inf")
+    max_length = (
+        50 if trim and not random and not open and not open_all else float("inf")
+    )
     db = sqlite3.connect(db_path)
     where_request = _build_where_request(
         keywords.split(" "), query_mode=query_mode, fields=fields
@@ -172,9 +174,8 @@ def ls(
                 pdf = _get_cached(title, url)
                 _view_pdf(pdf)
         else:
-            import webbrowser
             for _, url, _, _ in rows:
-                webbrowser.open(url)
+                _view_on_browser(url)
 
 
 def _format(s, max_length=50):
@@ -182,9 +183,6 @@ def _format(s, max_length=50):
     if len(s) > max_length:
         s = s[0:max_length] + "(...)"
     return s
-
-def _view_pdf(pdf):
-    call(f"{pdf_viewer} {pdf}", shell=True)
 
 
 def rm(keywords="", *, id="", query_mode="and", fields="all"):
@@ -382,12 +380,15 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
     return search_req
 
 
-def recommand(*, nb=5, id="", open=False):
+def recommand(q="", *, nb=5, id="", open=False, open_all=False, open_pdf=False):
     from functools import partial
     from sklearn.feature_extraction.text import TfidfVectorizer
 
     df = _export_db_to_dataframe()
-    titles = _get_active_window_titles()
+    if not q:
+        titles = _get_active_window_titles()
+    else:
+        titles = q.split(" ")
     df["url_title"] = df.apply(lambda d: "{} {}".format(d["url"], d["title"]), axis=1)
     tfidf = TfidfVectorizer().fit(df["url_title"].values.tolist())
     for i, title in enumerate(titles):
@@ -399,15 +400,16 @@ def recommand(*, nb=5, id="", open=False):
     df["url"] = df["url"].apply(partial(_format, max_length=100))
     cols = df[["id", "url", "sim"]].to_dict(orient="list")
     print(tabulate(cols, headers="keys"))
-    if open:
-        import webbrowser
-
-        if id:
-            id = int(id)
-            url = df.set_index("id").loc[id]["url_full"]
+    if open or open_all or open_pdf:
+        if not open_all:
+            df = df.iloc[0:1]
+        if open_pdf:
+            for _, row in df.iterrows():
+                pdf = _get_cached(row.title, row.url)
+                _view_pdf(pdf)
         else:
-            url = df.iloc[0]["url_full"]
-        webbrowser.open(url)
+            for _, row in df.iterrows():
+                _view_on_browser(row.url)
 
 
 def _get_active_window_titles():
@@ -441,47 +443,90 @@ def similar(tfidf, a, b):
 
 
 def update_cache():
-    df = _export_db_to_dataframe()
     if not os.path.exists(cache_path):
         os.makedirs(cache_path)
+    _clean_cache_folder()
+    df = _export_db_to_dataframe()
     for _, row in df.iterrows():
         _get_cached(row.title, row.url)
 
 
+def _clean_cache_folder():
+    # remove all cached files which do not correspond
+    # to an entry in the DB
+    df = _export_db_to_dataframe()
+    cache_filenames = []
+    for _, row in df.iterrows():
+        filename = _get_cache_path(row.title, row.url)
+        cache_filenames.append(filename)
+    cache_filenames = set(cache_filenames)
+    for filename in os.listdir(cache_path):
+        filename_full_path = os.path.join(cache_path, filename)
+        if filename_full_path not in cache_filenames:
+            print(f"Removing {filename_full_path}...")
+            os.remove(filename_full_path)
+
+
 def _get_cached(title, url, reset=False):
-    slug = url
-    slug = slug.replace(" ", "_")
-    slug = slug.replace("/", "_")
-    slug = slug.replace(":", "_")
-    slug = slug.lower()
-    filename = slug + ".pdf"
-    filename_full_path = os.path.join(cache_path, filename)
-    if os.path.exists(filename_full_path) and not reset:
-        return filename_full_path
+    cache_path = _get_cache_path(title, url)
+    if os.path.exists(cache_path) and not reset:
+        return cache_path
     else:
-        return _cache(url, filename_full_path)
+        _cache(url, dest=cache_path)
+        return cache_path
 
 
-def _cache(url, out_path):
-    print(f"Caching {url} to {out_path}")
+def _get_cache_path(title, url):
+    # replace special characters with underscore
+    slug = re.sub(r"[/!@#$%^&*(),.?\":{}|<>+'\[\]]", "_", url)
+    slug = slug.lower()
+    filename = slug[0:100] + ".pdf"
+    filename_full_path = os.path.join(cache_path, filename)
+    return filename_full_path
+
+
+def _cache(url, dest):
+    print(f"Caching {url} to {dest}")
     if "arxiv" in url:
         url = url.replace("/abs/", "/pdf/") + ".pdf"
-        cmd = f"curl --output '{out_path}' '{url}'"
+        cmd = f"curl --output '{dest}' '{url}'"
     elif url.endswith(".pdf"):
-        cmd = f"curl --output '{out_path}' '{url}'"
+        cmd = f"curl --output '{dest}' '{url}'"
     else:
-        cmd = f"{chrome} --headless  --disable-gpu --print-to-pdf='{out_path}' '{url}'"
+        cmd = f"{chrome} --headless  --disable-gpu --print-to-pdf='{dest}' '{url}'"
     try:
         call(cmd, shell=True, timeout=60)
     except TimeoutExpired:
-        return None
-    else:
-        return out_path
+        with open(dest, "w") as _:
+            pass
 
 
 def _tokenize(s):
     return re.split(r"[ \t\./-]+", s)
 
 
+def _view_on_browser(url):
+    import webbrowser
+
+    webbrowser.open(url)
+
+
+def _view_pdf(pdf):
+    call(f"{pdf_viewer} {pdf}", shell=True)
+
+
 if __name__ == "__main__":
-    run([a, ls, rm, export_csv, export_html, tag, reset_views, tags, recommand, update_cache])
+    run(
+        [
+            a,
+            ls,
+            rm,
+            export_csv,
+            export_html,
+            tag,
+            reset_views,
+            tags,
+            recommand,
+            update_cache,
+        ]
+    )
