@@ -370,6 +370,7 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
         fields = "title,url,description,tags"
     req = [field + " LIKE '%{q}%'" for field in fields.split(",")]
     req = " OR ".join(req)
+    req = "(" + req + ")"
     if query_mode == "and":
         method = " AND "
     elif query_mode == "or":
@@ -377,6 +378,7 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
     else:
         raise ValueError(method)
     search_req = method.join([req.format(q=k) for k in keywords])
+    print(search_req)
     return search_req
 
 
@@ -454,8 +456,7 @@ def _get_cached(title, url, reset=False):
     slug = slug.lower()
     filename = slug + ".pdf"
     filename_full_path = os.path.join(cache_path, filename)
-    #if os.path.exists(filename_full_path) and not reset:
-    if "arxiv" not in url:
+    if os.path.exists(filename_full_path) and not reset:
         return filename_full_path
     else:
         return _cache(url, filename_full_path)
