@@ -68,11 +68,12 @@ def ls(
     nb=-1,
     trim=True,
     random=False,
-    open_in_browser=False,
-    open_pdf=False,
-    open_all=False,
+    open_in_browser:'o'=False,
+    open_pdf:'p'=False,
+    open_all:'a'=False,
     query_mode="and",
     fields="all",
+    tags="",
 ):
     """
     display the list of urls in the bookmark
@@ -156,6 +157,9 @@ def ls(
     order = order.upper()
     assert order in ("DESC", "ASC")
     assert query_mode in ("and", "or")
+    if tags:
+        fields = "tags"
+        keywords = tags
     assert fields == "all" or all(
         [f in ("title", "desc", "tags", "url") for f in fields.split(",")]
     )
@@ -610,6 +614,17 @@ def _view_on_browser(url):
 def _view_pdf(pdf):
     call(f"{pdf_viewer} {pdf}", shell=True)
 
+def export_pocket(consumer_key, access_token):
+    from pocket import Pocket, PocketException
+    p = Pocket(
+            consumer_key=consumer_key,
+            access_token=access_token,
+    )
+    df = _export_db_to_dataframe(order_by="time")
+    urls = df.url.values
+    for url in urls:
+        print(url)
+        p.add(url)
 
 if __name__ == "__main__":
     run(
@@ -619,6 +634,7 @@ if __name__ == "__main__":
             rm,
             export_csv,
             export_html,
+            export_pocket,
             tag,
             reset_views,
             tags,
