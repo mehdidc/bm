@@ -482,7 +482,7 @@ def recommend(
         titles = keywords.split(" ")
     else:
         titles = _get_active_window_titles()
-    df["url_title"] = df.apply(lambda d: "{} {}".format(d["url"], d["title"]), axis=1)
+    df["url_title"] = df.apply(lambda d: "{} {}".format(d["url"].lower(), d["title"].lower()), axis=1)
     tfidf = TfidfVectorizer().fit(df["url_title"].values.tolist())
     for i, title in enumerate(titles):
         df["sim_{}".format(i)] = df["title"].apply(
@@ -529,7 +529,6 @@ def _get_active_window_titles():
 
 def _similarity_score(tfidf, a, b):
     import numpy as np
-
     x = tfidf.transform([a, b])
     x = np.array(x.todense())
     av = x[0]
@@ -620,11 +619,18 @@ def export_pocket(consumer_key, access_token):
             consumer_key=consumer_key,
             access_token=access_token,
     )
+    result = p.retrieve()
+    articles = result["list"]
+    exists = set()
+    for article in articles.values():
+        exists.add(article["given_url"])
+    print(len(exists))
     df = _export_db_to_dataframe(order_by="time")
     urls = df.url.values
     for url in urls:
-        print(url)
-        p.add(url)
+        if url not in exists:
+            print(f"Adding {url}")
+            p.add(url)
 
 if __name__ == "__main__":
     run(
