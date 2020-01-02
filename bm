@@ -447,7 +447,7 @@ def _build_where_request(keywords, query_mode="and", fields="all"):
 
 
 def recommend(
-    keywords="", *, nb=5, id="", open_in_browser=False, open_all=False, open_pdf=False
+    keywords="", *, nb=5, id="", open_in_browser=False, o=False, open_all=False, open_pdf=False
 ):
     """
     recommend links based either on keywords or on the active window titles
@@ -474,9 +474,11 @@ def recommend(
     bm recommend "deep learning" --nb=5 --open-pdf
 
     """
+    import numpy as np
     from functools import partial
     from sklearn.feature_extraction.text import TfidfVectorizer
-
+    if o:
+        open_in_browser = True
     df = _export_db_to_dataframe()
     if keywords:
         titles = keywords.split(" ")
@@ -494,6 +496,8 @@ def recommend(
     df["url_full"] = df["url"].copy()
     df["url"] = df["url"].apply(partial(_format, max_length=100))
     cols = df[["id", "url", "sim"]].to_dict(orient="list")
+    if np.all(df.sim.values == 0):
+        return
     print(tabulate(cols, headers="keys"))
     if open_in_browser or open_all or open_pdf:
         if not open_all:
