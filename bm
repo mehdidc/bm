@@ -627,8 +627,16 @@ def export_pocket(consumer_key, access_token):
     articles = result["list"]
     exists = set()
     for article in articles.values():
-        exists.add(article["given_url"])
-    print(len(exists))
+        url = article["given_url"]
+        exists.add(url)
+        if "https" in url:
+            exists.add(url.replace("https:", "http:"))
+        elif "http" in url:
+            exists.add(url.replace("http:", "https:"))
+        if url.endswith("/"):
+            exists.add(url[:-1])
+        else:
+            exists.add(url+"/")
     df = _export_db_to_dataframe(order_by="time")
     urls = df.url.values
     for url in urls:
