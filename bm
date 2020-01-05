@@ -644,6 +644,44 @@ def export_pocket(consumer_key, access_token):
             print(f"Adding {url}")
             p.add(url)
 
+def serve(*, host="127.0.0.1", port=8000):
+    from flask import Flask
+    from flask import request, render_template_string
+    app = Flask(__name__)
+    @app.route("/", methods=["GET"])
+    def index():
+        query = request.args.get("q", "")
+        tpl = """
+        <html>
+        <body>
+        <form method="GET">
+        <input name='q' type='text' value='{{query}}' />
+        <input type="submit" value="Search">
+        </form>
+        <ul>
+            {% for url, title in urls %}
+                <li>{{title}}<a href='{{url}}'> {{url}}</a></li>
+            {% endfor %}
+        </ul>
+        </body>
+        </html>
+        """
+        keywords = query.split(" ")
+        query_mode = "and"
+        fields = "all"
+        if keywords == "":
+            query = "SELECT url, title FROM urls"
+        else:
+            where_request = _build_where_request(
+                keywords=keywords, query_mode=query_mode, fields=fields
+            )
+            query = "SELECT url, title FROM urls WHERE {} ORDER BY time DESC".format(where_request)
+        conn = sqlite3.connect(db_path)
+        c = conn.cursor()
+        urls = list(c.execute(query))
+        return render_template_string(tpl, urls=urls)
+    app.run(host=host, port=port)
+
 if __name__ == "__main__":
     run(
         [
@@ -658,5 +696,6 @@ if __name__ == "__main__":
             tags,
             recommend,
             update_cache,
+            serve,
         ]
     )
