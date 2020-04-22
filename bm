@@ -289,6 +289,25 @@ def export_csv(out):
     df = _export_db_to_dataframe()
     df.to_csv(out, index=False)
 
+def export_markdown(out):
+    """
+    export the database into markdown
+
+    out : str
+        filename where to write the markdown
+
+    Examples:
+
+    bm export out.md
+    """
+    df = _export_db_to_dataframe()
+    df = df.sort_values(by="time", ascending=False)
+    fd = open(out, "w")
+    for _, row in df.iterrows():
+        title = row["title"]
+        url = row["url"]
+        fd.write(f"- {title} <{url}>\n")
+    fd.close()
 
 def export_html(out, *, order_by="views"):
     """
@@ -691,6 +710,7 @@ if __name__ == "__main__":
             export_csv,
             export_html,
             export_pocket,
+            export_markdown,
             tag,
             reset_views,
             tags,

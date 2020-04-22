@@ -64,10 +64,19 @@ bm rm --id=143 #remove a specific url
 
 bm rm 'health insurance' #remove all urls which match the keywords "health" and "insurance"
 ```
-# Export to csv or HTML
+# Export to csv or HTML or Markdown
 
 ```bash
 bm export-csv out.csv
 
 bm export-html out.html
+
+bm export-markdown out.md
+```
+
+# Export to pocket
+
+
+```bash
+bm export-pocket consumer_key access_token
 ```
