@@ -10,6 +10,7 @@ import requests
 from tabulate import tabulate
 import pandas as pd
 from random import shuffle
+import humanize
 
 pd.set_option("display.max_colwidth", -1)
 db_path = os.path.join(os.getenv("HOME"), ".bm.db")
@@ -670,7 +671,7 @@ def serve(*, host="127.0.0.1", port=8000):
     @app.route("/", methods=["GET"])
     def index():
         query = request.args.get("q", "")
-        tpl = """
+        tpl_ul = """
         <html>
         <body>
         <form method="GET">
@@ -678,10 +679,41 @@ def serve(*, host="127.0.0.1", port=8000):
         <input type="submit" value="Search">
         </form>
         <ul>
-            {% for url, title in urls %}
-                <li>{{title}}<a href='{{url}}'> {{url}}</a></li>
+            {% for url, title, cache, time in urls %}
+                
+                <li>
+                {{ title[0:100] }}
+                <a href='{{url}}'>{{url}}
+                </a>
+                Added {{time}}
+                </li>
             {% endfor %}
         </ul>
+        </body>
+        </html>
+        """
+
+        tpl_table = """
+        <html>
+        <body>
+        <form method="GET">
+        <input name='q' type='text' value='{{query}}' />
+        <input type="submit" value="Search">
+        </form>
+        <table>
+            
+            {% for url, title, cache, time in urls %}
+                <tr>
+                    <td>Added {{time}}</td>
+                    <td><a href='{{url}}'>{{title}}</a></td>
+                    <td>
+                        {%if cache %}
+                            <a href='{{cache}}'>PDF</a>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </table>
         </body>
         </html>
         """
@@ -694,11 +726,22 @@ def serve(*, host="127.0.0.1", port=8000):
             where_request = _build_where_request(
                 keywords=keywords, query_mode=query_mode, fields=fields
             )
-            sql = "SELECT url, title FROM urls WHERE {} ORDER BY time DESC".format(where_request)
+            sql = "SELECT url, title, time FROM urls WHERE {} ORDER BY time DESC".format(where_request)
         conn = sqlite3.connect(db_path)
         c = conn.cursor()
         urls = list(c.execute(sql))
-        return render_template_string(tpl, urls=urls, query=query)
+        res = []
+        for url, title, time in urls:
+            cache_path = os.path.abspath(_get_cache_path(title, url))
+            if os.path.exists(cache_path):
+                cache = f"file://{cache_path}"
+            else:
+                cache = ""
+            time = datetime.fromisoformat(time)
+            time = humanize.naturaldate(time.date())
+            title = url if title == "" else title
+            res.append((url, title, cache, time))
+        return render_template_string(tpl_table, urls=res, query=query)
     app.run(host=host, port=port)
 
 if __name__ == "__main__":
