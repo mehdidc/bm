@@ -685,7 +685,6 @@ def serve(*, host="127.0.0.1", port=8000):
                 {{ title[0:100] }}
                 <a href='{{url}}'>{{url}}
                 </a>
-                Added {{time}}
                 </li>
             {% endfor %}
         </ul>
@@ -741,7 +740,7 @@ def serve(*, host="127.0.0.1", port=8000):
             time = humanize.naturaldate(time.date())
             title = url if title == "" else title
             res.append((url, title, cache, time))
-        return render_template_string(tpl_table, urls=res, query=query)
+        return render_template_string(tpl_ul, urls=res, query=query)
     app.run(host=host, port=port)
 
 if __name__ == "__main__":
