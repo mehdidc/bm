@@ -35,6 +35,7 @@ def a(url, *, desc="", tags=""):
     bm a "https://www.sqlite.org/docs.html" --tags='database documentation reference' # 3 tags, "database", "documentation", and "reference"
 
     """
+    url = _fix(url)
     db = sqlite3.connect(db_path)
     db.execute(
         "CREATE TABLE IF NOT EXISTS urls(id INTEGER primary key,"
@@ -58,6 +59,23 @@ def a(url, *, desc="", tags=""):
         db.commit()
     except sqlite3.IntegrityError:
         print('Failed, url "{}" Already exists in the database.'.format(url))
+
+
+def fix_urls():
+    query = "SELECT id, url time FROM urls"
+    db = sqlite3.connect(db_path)
+    for id_, url in db.execute(query):
+        url_new = _fix(url)
+        if url_new != url:
+            print(url_new, url)
+            query = f"UPDATE urls SET url='{url_new}' WHERE id={id_}"
+            db.execute(query)
+            db.commit()
+
+def _fix(url):
+    if "arxiv.org/pdf" in url:
+        url = url.replace("arxiv.org/pdf", "arxiv.org/abs")
+    return url
 
 
 def ls(
@@ -743,6 +761,87 @@ def serve(*, host="127.0.0.1", port=8000):
         return render_template_string(tpl_ul, urls=res, query=query)
     app.run(host=host, port=port)
 
+def pick(*, match=None):
+    from collections import OrderedDict
+    from functools import partial
+    from sklearn.feature_extraction.text import TfidfVectorizer
+    from umap import UMAP
+    import numpy as np
+    from bokeh.plotting import figure, output_file, show, ColumnDataSource
+    from bokeh.models import HoverTool
+    from bokeh.models import OpenURL, TapTool
+    from sklearn.decomposition import PCA
+    import re
+    df = _export_db_to_dataframe()
+    df = df[df.url.str.contains("arxiv.org/abs")]
+    # df["text"] = df.apply(get_text, axis=1)
+    def format_title(title):
+        title = re.sub(r"\[.*\]", "", title)
+        return title
+    df["title"] = df["title"].apply(format_title)
+    col = "title"
+    tfidf = TfidfVectorizer()
+    vals = df[col].values.tolist()
+    tfidf.fit(vals)
+    docs = tfidf.transform(vals)
+    docs = docs.todense()
+    docs = PCA(n_components=50).fit_transform(docs)
+    urls = df.url.values
+    titles = df.title.values
+    umap = UMAP(
+        n_neighbors=30,
+    )
+    coords = umap.fit_transform(docs)
+    TOOLS = "hover,crosshair,pan,wheel_zoom,zoom_in,zoom_out,box_zoom,undo,redo,reset,tap,save,box_select,poly_select,lasso_select,"
+    p = figure(tools=TOOLS, plot_width=1500, height=800)
+    source = ColumnDataSource(
+        data={
+            "x": coords[:,0],
+            "y": coords[:,1],
+            "label": titles,
+            "link": urls,
+        }
+    )
+    p.scatter(
+        'x', 'y', 
+        fill_alpha=0.9,
+        size=7,
+        line_width=1,
+        source=source
+    )
+    hover = p.select(dict(type=HoverTool))
+    hover.tooltips = OrderedDict([
+        ("label", "@label"),
+    ])
+    taptool = p.select(type=TapTool)
+    taptool.callback = OpenURL(url="@link")
+    output_file("pick.html", title="links")
+    show(p)
+
+def get_text(row):
+    url = row["url"]
+    title = row["title"]
+    path = os.path.abspath(_get_cache_path(title, url))
+    name, ext = os.path.splitext(path)
+    text_path = name + ".txt"
+    if os.path.exists(path):
+        if not os.path.exists(text_path):
+            print(f"pdftotext {path}")
+            call(f"pdftotext {path}", shell=True)
+            if not os.path.exists(text_path):
+                with open(text_path, "w") as fd:
+                    fd.write("")
+    if os.path.exists(text_path):
+        with open(text_path) as fd:
+            lines = fd.readlines()
+            if not lines:
+                return title
+            data = ''.join(lines[0:50])
+        return data
+    else:
+        return title
+
+
 if __name__ == "__main__":
     run(
         [
@@ -759,5 +858,7 @@ if __name__ == "__main__":
             recommend,
             update_cache,
             serve,
+            pick,
+            fix_urls,
         ]
     )
