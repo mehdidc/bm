@@ -697,8 +697,13 @@ def serve(*, host="127.0.0.1", port=8000):
         <input type="submit" value="Search">
         </form>
         <ul>
-            {% for url, title, cache, time in urls %}
+            
+            {% for url, title, cache, time, show_date in urls %}
                 
+                {% if show_date != "" %}
+                    <p><strong>{{show_date}}</strong></p>
+                {% endif %}
+                     
                 <li>
                 {{ title[0:100] }}
                 <a href='{{url}}'>{{url}}
@@ -706,31 +711,6 @@ def serve(*, host="127.0.0.1", port=8000):
                 </li>
             {% endfor %}
         </ul>
-        </body>
-        </html>
-        """
-
-        tpl_table = """
-        <html>
-        <body>
-        <form method="GET">
-        <input name='q' type='text' value='{{query}}' />
-        <input type="submit" value="Search">
-        </form>
-        <table>
-            
-            {% for url, title, cache, time in urls %}
-                <tr>
-                    <td>Added {{time}}</td>
-                    <td><a href='{{url}}'>{{title}}</a></td>
-                    <td>
-                        {%if cache %}
-                            <a href='{{cache}}'>PDF</a>
-                        {% endif %}
-                    </td>
-                </tr>
-            {% endfor %}
-        </table>
         </body>
         </html>
         """
@@ -748,6 +728,7 @@ def serve(*, host="127.0.0.1", port=8000):
         c = conn.cursor()
         urls = list(c.execute(sql))
         res = []
+        prev_date = None
         for url, title, time in urls:
             cache_path = os.path.abspath(_get_cache_path(title, url))
             if os.path.exists(cache_path):
@@ -755,9 +736,14 @@ def serve(*, host="127.0.0.1", port=8000):
             else:
                 cache = ""
             time = datetime.fromisoformat(time)
-            time = humanize.naturaldate(time.date())
+            date = humanize.naturaldate(time.date())
             title = url if title == "" else title
-            res.append((url, title, cache, time))
+            if prev_date and date != prev_date:
+                show_date = date
+            else:
+                show_date = ""
+            prev_date = date
+            res.append((url, title, cache, time, show_date))
         return render_template_string(tpl_ul, urls=res, query=query)
     app.run(host=host, port=port)
 
